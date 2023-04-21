@@ -121,25 +121,26 @@ def plot_electricity_supply(n,
     df = pd.DataFrame(index=n.snapshots)
     for carrier in carriers_list:
         if carrier != 'battery' and carrier != 'hydro':
-            index = n.generators.query("carrier == @carrier").index
-            df[carrier] = n.generators_t.p[index].sum(axis=1)/1e3
+            df[carrier] = n.generators_t.p[carrier]/1e3
         else:
-            index = n.storage_units.query("carrier == @carrier").index
-            storage_t = n.storage_units_t.p[index].sum(axis=1)/1e3
+            storage_t = n.storage_units_t.p[carrier]/1e3
             storage_t[storage_t<0] = 0
             df[carrier] = storage_t
             
-    #print(df.max())
-    df.resample(freq).sum().plot.area(ax=ax,
-                                     stacked=True,
-                                     color=[tech_colors[i] for i in df.columns],lw=0)
+    df_plot = df.resample(freq).sum()
+    preferred_order = ['wind','solar','hydro','battery']
+    index = pd.Index(preferred_order)
+    df_plot = df_plot[preferred_order]
+    df_plot.plot.area(ax=ax,
+                     stacked=True,
+                     color=[tech_colors[i] for i in df_plot.columns],lw=0)
             
     ax.set_ylabel(timescales[freq] + ' energy supply [GWh]')
     ax.set_xlim(min(n.snapshots),max(n.snapshots));
     ax.grid()
     
-    fmt = mdates.DateFormatter('%b')
-    ax.xaxis.set_major_formatter(fmt)
+    #fmt = mdates.DateFormatter('%b')
+    #ax.xaxis.set_major_formatter(fmt)
     ax.legend(frameon=True);
 
 def plot_total_electricity_supply(n,tech_colors):

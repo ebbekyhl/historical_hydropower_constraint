@@ -16,6 +16,9 @@ def build_base_network(country,
                        CF_solar,
                        p_nom_solar,
                        p_nom_max_solar,
+                       p_nom_hydro=0,
+                       hydro_inflow=0,
+                       hydro_max_hours=0,
                        carriers_list=['wind','solar','battery']):
     import pypsa
     import pandas as pd
@@ -72,61 +75,80 @@ def build_base_network(country,
               efficiency_dispatch=0.95,
               cyclic_state_of_charge=True
              )
+        
+    if 'hydro' in carriers_list:
+        n.add('StorageUnit',
+              'hydro',
+              bus='electricity bus',
+              carrier = 'hydro',
+              p_nom_extendable=False,
+              p_nom=p_nom_hydro,
+              inflow=hydro_inflow,
+              max_hours=hydro_max_hours,
+              capital_cost=10e6*annuity(30,0.07),
+              marginal_cost=0.,
+              p_max_pu=1, 
+              p_min_pu=0, 
+              efficiency_dispatch=0.9,
+              efficiency_store=0.0, # you can't store electricity in this item
+              cyclic_state_of_charge=True,
+             )
     
     return n
-
-#def solve(n):
-#    n.lopf(n.snapshots, 
-#            pyomo=False,
-#            solver_name='gurobi')
 
 def add_wind_constraint(n):
     """
     This function adds a constraint which is used as an example
     """
     lhs = n.model.variables["Generator-p"].sel(Generator='wind').sum()
-    n.model.add_constraints(lhs <= 1e6, name="wind total constraint")
-
-def add_capacity_addition_constraint(n):
-    """
-    This function adds a constraint which is used as an example
-    """
-    lhs = n.model.variables["Generator-p_nom"].sel({"Generator-ext":'wind'}) - n.generators.p_nom['wind'].sum()
     n.model.add_constraints(lhs <= 1000, name="wind total constraint")
-    
+
 def add_hydropower_constraint(n):
     """
     This function adds a constraint on the hydropower dispatch ...
     """
     
-    kwargs = {'snapshot':30*24} # monthly (approx.) rolling sum
-    n.model.variables["StorageUnit-p_dispatch"].sel(StorageUnit='hydro').rolling_sum(**kwargs)
+    # LHS
+    p = n.model.variables["StorageUnit-p_dispatch"].sel(StorageUnit='hydro')
+    ds_months = pd.Series(n.snapshots.month,
+                          index = pd.DatetimeIndex(n.snapshots)
+                         ).to_xarray()
+    lhs = p.groupby(ds_months).sum()
     
-    # historical_bound = 
-    
-    rhs = historical_dispatch_bound
-    lhs = n.model.variables["StorageUnit"].sel(StorageUnit='hydro').sum()
-    n.model.add_constraints(lhs <= rhs, name="hydro dispatch constraint")
-    
-    #model_monthly_dispatch = n.storage_units_t.p['hydro'].resample('m').sum()/1e3
-    #historical_monthly_dispatch_min = df.resample('m').sum().min(axis=1)
-    #historical_monthly_dispatch_max = df.resample('m').sum().max(axis=1)
-    
-    #lhs = historical_monthly_dispatch_min - model_monthly_dispatch
+    # RHS
+    snapshot = np.arange(1,13)
+    limit = [14741419.0,
+             13009648.0,
+             13175947.0,
+             11811489.0,
+             11696178.0,
+             10964123.0,
+             10787874.0,
+             11250418.0,
+             11147324.0,
+             12588790.0,
+             13613233.0,
+             13814607.0]
+    data_array = xr.DataArray(
+                data=limit,
+                dims = ["snapshot"],
+                coords = dict(snapshot=snapshot),
+                attrs = dict(description="monthly_limit",units="")
+                )
+    rhs = data_array
+    n.model.add_constraints(lhs <= rhs, name="hydro monthly upper bound")
 
-    #n.model.add_constraints(lhs <= 0, name="hydropower_constraint")
-
-def extra_functionality(n, snapshots):
+def extra_functionality(n):
     """
     Collects supplementary constraints which will be passed to
     ``pypsa.optimization.optimize``.
     If you want to enforce additional custom constraints, this is a good
     location to add them.
     """
-    #add_hydropower_constraint(n) # does not work yet ... 
-    add_wind_constraint(n) # works very well
-    #add_capacity_addition_constraint(n)
-
+    
+    # add_hydropower_constraint(n)  
+    # add_wind_constraint(n)
+    
 def solve_network(n,
                   **kwargs):
     
