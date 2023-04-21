@@ -121,9 +121,11 @@ def plot_electricity_supply(n,
     df = pd.DataFrame(index=n.snapshots)
     for carrier in carriers_list:
         if carrier != 'battery' and carrier != 'hydro':
-            df[carrier] = n.generators_t.p[carrier]/1e3
+            index = n.generators.query("carrier == @carrier").index
+            df[carrier] = n.generators_t.p[index].sum(axis=1)/1e3
         else:
-            storage_t = n.storage_units_t.p[carrier]/1e3
+            index = n.storage_units.query("carrier == @carrier").index
+            storage_t = n.storage_units_t.p[index].sum(axis=1)/1e3
             storage_t[storage_t<0] = 0
             df[carrier] = storage_t
             
