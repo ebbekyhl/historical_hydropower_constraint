@@ -94,8 +94,8 @@ def plot_hydro_operation(n,
     
     x = df_min.resample(freq).sum().index - pd.Timedelta(weeks=delta)
         
-    y1 = df_min.resample(freq).sum()/1e3 # convert GWh to TWh
-    y2 = df_max.resample(freq).sum()/1e3 # convert GWh to TWh
+    y1 = df_min.resample(freq).sum()/1e6 # convert MWh to TWh
+    y2 = df_max.resample(freq).sum()/1e6 # convert MWh to TWh
     ax.fill_between(x,y1,y2,alpha=0.5,label='Historical dispatch')
 
     fmt = mdates.DateFormatter('%b')
@@ -121,25 +121,26 @@ def plot_electricity_supply(n,
     df = pd.DataFrame(index=n.snapshots)
     for carrier in carriers_list:
         if carrier != 'battery' and carrier != 'hydro':
-            index = n.generators.query("carrier == @carrier").index
-            df[carrier] = n.generators_t.p[index].sum(axis=1)/1e3
+            df[carrier] = n.generators_t.p[carrier]/1e3
         else:
-            index = n.storage_units.query("carrier == @carrier").index
-            storage_t = n.storage_units_t.p[index].sum(axis=1)/1e3
+            storage_t = n.storage_units_t.p[carrier]/1e3
             storage_t[storage_t<0] = 0
             df[carrier] = storage_t
             
-    #print(df.max())
-    df.resample(freq).sum().plot.area(ax=ax,
-                                     stacked=True,
-                                     color=[tech_colors[i] for i in df.columns],lw=0)
+    df_plot = df.resample(freq).sum()
+    preferred_order = ['wind','solar','hydro','battery']
+    index = pd.Index(preferred_order)
+    df_plot = df_plot[preferred_order]
+    df_plot.plot.area(ax=ax,
+                     stacked=True,
+                     color=[tech_colors[i] for i in df_plot.columns],lw=0)
             
     ax.set_ylabel(timescales[freq] + ' energy supply [GWh]')
     ax.set_xlim(min(n.snapshots),max(n.snapshots));
     ax.grid()
     
-    fmt = mdates.DateFormatter('%b')
-    ax.xaxis.set_major_formatter(fmt)
+    #fmt = mdates.DateFormatter('%b')
+    #ax.xaxis.set_major_formatter(fmt)
     ax.legend(frameon=True);
 
 def plot_total_electricity_supply(n,tech_colors):

@@ -94,8 +94,8 @@ def plot_hydro_operation(n,
     
     x = df_min.resample(freq).sum().index - pd.Timedelta(weeks=delta)
         
-    y1 = df_min.resample(freq).sum()/1e3 # convert GWh to TWh
-    y2 = df_max.resample(freq).sum()/1e3 # convert GWh to TWh
+    y1 = df_min.resample(freq).sum()/1e6 # convert MWh to TWh
+    y2 = df_max.resample(freq).sum()/1e6 # convert MWh to TWh
     ax.fill_between(x,y1,y2,alpha=0.5,label='Historical dispatch')
 
     fmt = mdates.DateFormatter('%b')
